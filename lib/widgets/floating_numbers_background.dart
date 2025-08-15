@@ -16,18 +16,25 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   @override
   void initState() {
     super.initState();
-    // Initialize floating numbers
-    for (int i = 0; i < 30; i++) {
+
+    // Create a list 1..25 and shuffle
+    List<int> values = List.generate(25, (i) => i + 1);
+    values.shuffle(_random);
+
+    // If you want more than 25 numbers, repeat the sequence
+    int totalNumbers = 25;
+    for (int i = 0; i < totalNumbers; i++) {
+      int value = values[i % values.length]; // cycle through 1-25
       _numbers.add(_FloatingNumber(
-        value: _random.nextInt(25) + 1,
+        value: value,
         x: _random.nextDouble(),
         y: _random.nextDouble(),
-        speedX: (_random.nextDouble() - 0.5) * 0.001, // random horizontal drift
-        speedY: (_random.nextDouble() - 0.5) * 0.001, // random vertical drift
+        speedX: (_random.nextDouble() - 0.5) * 0.001,
+        speedY: (_random.nextDouble() - 0.5) * 0.001,
         rotation: _random.nextDouble() * pi * 2,
         rotationSpeed: (_random.nextDouble() - 0.5) * 0.001,
-        opacity: 0.25 + _random.nextDouble() * 0.5, // max 0.75
-        fontSize: 20 + _random.nextDouble() * 25,
+        opacity: 0.15 + _random.nextDouble() * 0.45,
+        fontSize: 7 + _random.nextDouble() * 25,
       ));
     }
 
@@ -40,16 +47,30 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   }
 
   void _updateNumbers() {
+    const deltaTime = 1 / 60; // approx frame time
+
     for (var n in _numbers) {
+      // Smoothly interpolate speed back to target
+      if (n.velocityDecayTime > 0) {
+        final t = deltaTime / n.velocityDecayTime;
+        n.speedX += (n.targetSpeedX - n.speedX) * t;
+        n.speedY += (n.targetSpeedY - n.speedY) * t;
+        n.velocityDecayTime -= deltaTime;
+      }
+
       n.x += n.speedX;
       n.y += n.speedY;
       n.rotation += n.rotationSpeed;
 
-      // Wrap around edges for infinite movement
+      // Wrap around edges
       if (n.x < -0.1) n.x = 1.1;
       if (n.x > 1.1) n.x = -0.1;
       if (n.y < -0.1) n.y = 1.1;
       if (n.y > 1.1) n.y = -0.1;
+
+      // Slowly grow and shrink font size
+      final time = DateTime.now().millisecondsSinceEpoch / 1000;
+      n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
     }
     setState(() {});
   }
@@ -62,10 +83,36 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _FloatingNumberPainter(_numbers),
-      size: Size.infinite,
+    return Listener(
+      onPointerDown: (event) => _handleTap(event.localPosition, context),
+      onPointerMove: (event) => _handleTap(event.localPosition, context),
+      child: CustomPaint(
+        painter: _FloatingNumberPainter(_numbers),
+        size: Size.infinite,
+      ),
     );
+  }
+
+  void _handleTap(Offset position, BuildContext context) {
+    final tapX = position.dx / MediaQuery.of(context).size.width;
+    final tapY = position.dy / MediaQuery.of(context).size.height;
+
+    for (var n in _numbers) {
+      final dx = n.x - tapX;
+      final dy = n.y - tapY;
+      final dist = sqrt(dx * dx + dy * dy);
+
+      if (dist < 0.15) {
+        // Push away
+        n.speedX += dx / dist * 0.02;
+        n.speedY += dy / dist * 0.02;
+
+        // Smoothly return to original over 2 seconds
+        n.targetSpeedX = n.originalSpeedX;
+        n.targetSpeedY = n.originalSpeedY;
+        n.velocityDecayTime = 2.0; // 2 seconds
+      }
+    }
   }
 }
 
@@ -74,11 +121,23 @@ class _FloatingNumber {
   double y;
   double speedX;
   double speedY;
+  final double originalSpeedX;
+  final double originalSpeedY;
+
+  double targetSpeedX;
+  double targetSpeedY;
+  double velocityDecayTime = 0;
+
   double rotation;
   double rotationSpeed;
   final int value;
   final double opacity;
-  final double fontSize;
+  final double baseFontSize;
+
+  // For slow random growth/shrink
+  final double sizePhase; // random starting phase
+  final double sizeSpeed; // speed of oscillation
+  double fontSize;
 
   _FloatingNumber({
     required this.value,
@@ -89,8 +148,15 @@ class _FloatingNumber {
     required this.rotation,
     required this.rotationSpeed,
     required this.opacity,
-    required this.fontSize,
-  });
+    required double fontSize,
+  })  : originalSpeedX = speedX,
+        originalSpeedY = speedY,
+        targetSpeedX = speedX,
+        targetSpeedY = speedY,
+        baseFontSize = fontSize,
+        fontSize = fontSize,
+        sizePhase = Random().nextDouble() * 2 * pi,
+        sizeSpeed = 0.2 + Random().nextDouble() * 0.3; // slow oscillation
 }
 
 class _FloatingNumberPainter extends CustomPainter {

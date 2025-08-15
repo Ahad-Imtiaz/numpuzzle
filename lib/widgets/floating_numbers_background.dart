@@ -17,14 +17,10 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   void initState() {
     super.initState();
 
-    // Create a list 1..25 and shuffle
-    List<int> values = List.generate(25, (i) => i + 1);
-    values.shuffle(_random);
-
-    // If you want more than 25 numbers, repeat the sequence
+    // Create 15 floating numbers
     int totalNumbers = 25;
     for (int i = 0; i < totalNumbers; i++) {
-      int value = values[i % values.length]; // cycle through 1-25
+      int value = i + 1;
       _numbers.add(_FloatingNumber(
         value: value,
         x: _random.nextDouble(),
@@ -40,17 +36,21 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(days: 1), // effectively infinite
+      duration: const Duration(days: 1),
     )
       ..addListener(_updateNumbers)
       ..repeat();
   }
 
+  // Limit update rate to ~30 FPS
+  int _lastUpdateTime = DateTime.now().millisecondsSinceEpoch;
   void _updateNumbers() {
-    const deltaTime = 1 / 60; // approx frame time
+    final currentTime = DateTime.now().millisecondsSinceEpoch;
+    if (currentTime - _lastUpdateTime < 33) return; // ~30 FPS
+    _lastUpdateTime = currentTime;
 
+    const deltaTime = 1 / 30;
     for (var n in _numbers) {
-      // Smoothly interpolate speed back to target
       if (n.velocityDecayTime > 0) {
         final t = deltaTime / n.velocityDecayTime;
         n.speedX += (n.targetSpeedX - n.speedX) * t;
@@ -71,8 +71,13 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
       // Slowly grow and shrink font size
       final time = DateTime.now().millisecondsSinceEpoch / 1000;
       n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
+
+      // Update precomputed TextPainter
+      n.updateTextPainter();
     }
-    setState(() {});
+
+    // Only repaint painter, not widget tree
+    if (mounted) setState(() {});
   }
 
   @override
@@ -83,12 +88,14 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (event) => _handleTap(event.localPosition, context),
-      onPointerMove: (event) => _handleTap(event.localPosition, context),
-      child: CustomPaint(
-        painter: _FloatingNumberPainter(_numbers),
-        size: Size.infinite,
+    return RepaintBoundary(
+      child: Listener(
+        onPointerDown: (event) => _handleTap(event.localPosition, context),
+        onPointerMove: (event) => _handleTap(event.localPosition, context),
+        child: CustomPaint(
+          painter: _FloatingNumberPainter(_numbers),
+          size: Size.infinite,
+        ),
       ),
     );
   }
@@ -110,7 +117,7 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
         // Smoothly return to original over 2 seconds
         n.targetSpeedX = n.originalSpeedX;
         n.targetSpeedY = n.originalSpeedY;
-        n.velocityDecayTime = 2.0; // 2 seconds
+        n.velocityDecayTime = 2.0;
       }
     }
   }
@@ -134,10 +141,11 @@ class _FloatingNumber {
   final double opacity;
   final double baseFontSize;
 
-  // For slow random growth/shrink
-  final double sizePhase; // random starting phase
-  final double sizeSpeed; // speed of oscillation
+  final double sizePhase;
+  final double sizeSpeed;
   double fontSize;
+
+  late TextPainter textPainter;
 
   _FloatingNumber({
     required this.value,
@@ -156,7 +164,31 @@ class _FloatingNumber {
         baseFontSize = fontSize,
         fontSize = fontSize,
         sizePhase = Random().nextDouble() * 2 * pi,
-        sizeSpeed = 0.2 + Random().nextDouble() * 0.3; // slow oscillation
+        sizeSpeed = 0.2 + Random().nextDouble() * 0.3 {
+    updateTextPainter();
+  }
+
+  void updateTextPainter() {
+    final textSpan = TextSpan(
+      text: value.toString(),
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+        color: Colors.blueAccent.withOpacity(opacity),
+        shadows: [
+          Shadow(
+            blurRadius: 3.0,
+            color: Colors.blueAccent.withOpacity(opacity),
+            offset: const Offset(0, 0),
+          ),
+        ],
+      ),
+    );
+    textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
 }
 
 class _FloatingNumberPainter extends CustomPainter {
@@ -166,39 +198,12 @@ class _FloatingNumberPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (var n in numbers) {
-      final textSpan = TextSpan(
-        text: n.value.toString(),
-        style: TextStyle(
-          fontSize: n.fontSize,
-          fontWeight: FontWeight.bold,
-          color: Colors.blueAccent.withOpacity(n.opacity),
-          shadows: [
-            Shadow(
-              blurRadius: 6.0,
-              color: Colors.blueAccent.withOpacity(n.opacity),
-              offset: const Offset(0, 0),
-            ),
-            Shadow(
-              blurRadius: 3.0,
-              color: Colors.blueAccent.withOpacity(n.opacity / 2),
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
-      );
-
-      final textPainter = TextPainter(
-        text: textSpan,
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-
       canvas.save();
       canvas.translate(n.x * size.width, n.y * size.height);
       canvas.rotate(n.rotation);
-      textPainter.paint(
+      n.textPainter.paint(
         canvas,
-        Offset(-textPainter.width / 2, -textPainter.height / 2),
+        Offset(-n.textPainter.width / 2, -n.textPainter.height / 2),
       );
       canvas.restore();
     }

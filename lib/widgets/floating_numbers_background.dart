@@ -1,7 +1,5 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 class FloatingNumbersBackground extends StatefulWidget {
   const FloatingNumbersBackground({super.key});
@@ -11,71 +9,97 @@ class FloatingNumbersBackground extends StatefulWidget {
 }
 
 class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
+  late final AnimationController _controller;
   final Random _random = Random();
   final List<_FloatingNumber> _numbers = [];
 
   @override
   void initState() {
     super.initState();
+    // Initialize floating numbers
     for (int i = 0; i < 30; i++) {
       _numbers.add(_FloatingNumber(
         value: _random.nextInt(25) + 1,
         x: _random.nextDouble(),
         y: _random.nextDouble(),
-        dx: (_random.nextDouble() - 0.5) * 0.002,
-        dy: (_random.nextDouble() - 0.5) * 0.002,
-        rotation: _random.nextDouble() * 2 * pi,
-        rotationSpeed: (_random.nextDouble() - 0.5) * 0.01,
-        fontSize: 3 + _random.nextDouble() * 30,
-        opacity: 0.1 + _random.nextDouble() * 0.35,
+        speedX: (_random.nextDouble() - 0.5) * 0.001, // random horizontal drift
+        speedY: (_random.nextDouble() - 0.5) * 0.001, // random vertical drift
+        rotation: _random.nextDouble() * pi * 2,
+        rotationSpeed: (_random.nextDouble() - 0.5) * 0.001,
+        opacity: 0.25 + _random.nextDouble() * 0.5, // max 0.75
+        fontSize: 20 + _random.nextDouble() * 25,
       ));
     }
 
-    _ticker = createTicker((_) {
-      for (var n in _numbers) {
-        n.x += n.dx;
-        n.y += n.dy;
-        n.rotation += n.rotationSpeed;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(days: 1), // effectively infinite
+    )
+      ..addListener(_updateNumbers)
+      ..repeat();
+  }
 
-        if (n.x < -0.1) n.x = 1.1;
-        if (n.x > 1.1) n.x = -0.1;
-        if (n.y < -0.1) n.y = 1.1;
-        if (n.y > 1.1) n.y = -0.1;
-      }
-      setState(() {});
-    });
-    _ticker.start();
+  void _updateNumbers() {
+    for (var n in _numbers) {
+      n.x += n.speedX;
+      n.y += n.speedY;
+      n.rotation += n.rotationSpeed;
+
+      // Wrap around edges for infinite movement
+      if (n.x < -0.1) n.x = 1.1;
+      if (n.x > 1.1) n.x = -0.1;
+      if (n.y < -0.1) n.y = 1.1;
+      if (n.y > 1.1) n.y = -0.1;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
+      painter: _FloatingNumberPainter(_numbers),
       size: Size.infinite,
-      painter: _FloatingNumbersPainter(_numbers),
     );
   }
 }
 
-class _FloatingNumbersPainter extends CustomPainter {
+class _FloatingNumber {
+  double x;
+  double y;
+  double speedX;
+  double speedY;
+  double rotation;
+  double rotationSpeed;
+  final int value;
+  final double opacity;
+  final double fontSize;
+
+  _FloatingNumber({
+    required this.value,
+    required this.x,
+    required this.y,
+    required this.speedX,
+    required this.speedY,
+    required this.rotation,
+    required this.rotationSpeed,
+    required this.opacity,
+    required this.fontSize,
+  });
+}
+
+class _FloatingNumberPainter extends CustomPainter {
   final List<_FloatingNumber> numbers;
-  _FloatingNumbersPainter(this.numbers);
+  _FloatingNumberPainter(this.numbers);
 
   @override
   void paint(Canvas canvas, Size size) {
     for (var n in numbers) {
-      canvas.save();
-      final dx = n.x * size.width;
-      final dy = n.y * size.height;
-      canvas.translate(dx, dy);
-      canvas.rotate(n.rotation);
-
       final textSpan = TextSpan(
         text: n.value.toString(),
         style: TextStyle(
@@ -84,12 +108,12 @@ class _FloatingNumbersPainter extends CustomPainter {
           color: Colors.blueAccent.withOpacity(n.opacity),
           shadows: [
             Shadow(
-              blurRadius: 6.0, // stronger blur
+              blurRadius: 6.0,
               color: Colors.blueAccent.withOpacity(n.opacity),
               offset: const Offset(0, 0),
             ),
             Shadow(
-              blurRadius: 3.0, // layered shadow for depth
+              blurRadius: 3.0,
               color: Colors.blueAccent.withOpacity(n.opacity / 2),
               offset: const Offset(0, 0),
             ),
@@ -97,40 +121,23 @@ class _FloatingNumbersPainter extends CustomPainter {
         ),
       );
 
-      final tp = TextPainter(
+      final textPainter = TextPainter(
         text: textSpan,
         textDirection: TextDirection.ltr,
       );
-      tp.layout();
-      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      textPainter.layout();
+
+      canvas.save();
+      canvas.translate(n.x * size.width, n.y * size.height);
+      canvas.rotate(n.rotation);
+      textPainter.paint(
+        canvas,
+        Offset(-textPainter.width / 2, -textPainter.height / 2),
+      );
       canvas.restore();
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class _FloatingNumber {
-  double x;
-  double y;
-  double dx;
-  double dy;
-  double rotation;
-  double rotationSpeed;
-  double fontSize;
-  double opacity;
-  final int value;
-
-  _FloatingNumber({
-    required this.value,
-    required this.x,
-    required this.y,
-    required this.dx,
-    required this.dy,
-    required this.rotation,
-    required this.rotationSpeed,
-    required this.fontSize,
-    required this.opacity,
-  });
+  bool shouldRepaint(covariant _FloatingNumberPainter oldDelegate) => true;
 }

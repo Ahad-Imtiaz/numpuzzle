@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:numpuzzle/utils/platform_utils.dart';
 
 class FloatingNumbersBackground extends StatefulWidget {
   const FloatingNumbersBackground({super.key});
@@ -81,17 +83,13 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final enableTouch = !isMobileWeb; // disable touch on mobile web
+
     return RepaintBoundary(
       child: Listener(
-        onPointerDown: (event) => _handleTap(event.localPosition, context),
-        onPointerMove: (event) => _handleTap(event.localPosition, context),
+        onPointerDown: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
+        onPointerMove: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
         child: CustomPaint(
           painter: _FloatingNumberPainter(_numbers),
           size: Size.infinite,

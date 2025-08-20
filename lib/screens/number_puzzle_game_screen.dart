@@ -1,19 +1,24 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-
-import 'package:numpuzzle/utils/game_helper.dart';
-import 'package:numpuzzle/models/cell.dart';
+import 'package:numpuzzle/enums/game_mode.dart';
+import '../utils/game_helper.dart';
+import '../utils/game_timer.dart';
+import '../utils/red_cell_manager.dart';
+import '../widgets/game_board.dart';
+import '../widgets/start_game_widget.dart';
+import '../models/cell.dart';
 
 class NumberPuzzleGameScreen extends StatefulWidget {
   final GameMode mode;
   final bool isReversedMode;
+  final bool isPunishWrongTapsActive;
 
   const NumberPuzzleGameScreen({
     super.key,
     required this.mode,
     required this.isReversedMode,
+    required this.isPunishWrongTapsActive,
   });
 
   @override
@@ -24,164 +29,66 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   final int gridSize = 5;
   late List<List<Cell>> grid;
   int nextNumber = 1;
-  int elapsedTime = 0;
-  Timer? timer;
-  bool gameStarted = false;
   int wrongTaps = 0;
-  final Random random = Random();
+  bool gameStarted = false;
+
+  late GameTimer gameTimer;
+  late RedCellManager redCellManager;
 
   @override
   void initState() {
     super.initState();
+    redCellManager = RedCellManager();
+    gameTimer = GameTimer(onTick: (time) => setState(() {}));
     _generateGrid();
   }
 
   void _generateGrid() {
-    List<int> numbers = List.generate(gridSize * gridSize, (i) => i + 1)..shuffle();
-    grid = List.generate(
-      gridSize,
-      (i) => List.generate(
-        gridSize,
-        (j) => Cell(
-          number: numbers[i * gridSize + j],
-          visited: widget.isReversedMode,
-        ),
-      ),
+    grid = GameHelper.generateGrid(
+      gridSize: gridSize,
+      isReversedMode: widget.isReversedMode,
+      mode: widget.mode,
+      random: Random(),
+      nextNumberCallback: (value) => nextNumber = value,
     );
 
-    if (widget.mode != GameMode.simple) _generateRedFields();
-    _setInitialNextNumber();
-  }
-
-  void _setInitialNextNumber() {
-    nextNumber = !widget.isReversedMode ? 1 : grid.expand((r) => r).map((c) => c.number).reduce(max);
-  }
-
-  void _generateRedFields() {
-    final selectableCells = grid.expand((r) => r).where((c) {
-      if (widget.isReversedMode) return c.visited && c.number != nextNumber;
-      return !c.visited && c.number != nextNumber;
-    }).toList();
-
-    int redCount = 0;
-    switch (widget.mode) {
-      case GameMode.easy:
-        redCount = min(4 + random.nextInt(10), selectableCells.length);
-        break;
-      case GameMode.intermediate:
-        redCount = min(3 + random.nextInt(4), selectableCells.length);
-        break;
-      case GameMode.simple:
-        redCount = 0;
-        break;
-    }
-
-    for (var row in grid) {
-      for (var cell in row) {
-        if ((widget.isReversedMode && cell.visited) || (!widget.isReversedMode && !cell.visited)) {
-          if (cell.number != nextNumber) cell.isRed = false;
-        }
-      }
-    }
-
-    selectableCells.shuffle();
-    for (int i = 0; i < redCount; i++) {
-      selectableCells[i].isRed = true;
+    if (widget.mode != GameMode.simple) {
+      redCellManager.generateRedCells(grid, widget.isReversedMode, widget.mode);
     }
   }
 
   void _startGame() {
     setState(() {
       gameStarted = true;
-      elapsedTime = 0;
       wrongTaps = 0;
       _generateGrid();
     });
-
-    timer?.cancel();
-    timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() => elapsedTime++);
-    });
-  }
-
-  void _clearRedFields() {
-    for (var row in grid) {
-      for (var cell in row) {
-        cell.isRed = false;
-      }
-    }
-  }
-
-  void _recalculateNextNumber() {
-    final selectable = grid.expand((r) => r).where((c) {
-      if (widget.isReversedMode) return c.visited && !c.isRed;
-      return !c.visited && !c.isRed;
-    }).toList();
-
-    if (selectable.isEmpty) {
-      timer?.cancel();
-      _showWinDialog();
-      return;
-    }
-
-    nextNumber = widget.isReversedMode
-        ? selectable.map((c) => c.number).reduce(max)
-        : selectable.map((c) => c.number).reduce(min);
-  }
-
-  void _animateWrongTap(Cell cell) {
-    setState(() {
-      cell.animateWrong = true;
-    });
-    Future.delayed(const Duration(milliseconds: 200), () {
-      setState(() {
-        cell.animateWrong = false;
-      });
-    });
+    gameTimer.reset();
+    gameTimer.start();
   }
 
   void _onCellTapped(int row, int col) {
-    Cell cell = grid[row][col];
-
-    if (widget.isReversedMode) {
-      if (!cell.visited) return;
-      if (cell.number == nextNumber && !cell.isRed) {
-        setState(() {
-          cell.visited = false;
-          if (widget.mode == GameMode.intermediate) {
-            _clearRedFields();
-            _generateRedFields();
-          }
-          _recalculateNextNumber();
-        });
-      } else {
-        _animateWrongTap(cell);
-        setState(() => wrongTaps++);
-      }
-    } else {
-      if (cell.visited) return;
-      if (cell.number == nextNumber && !cell.isRed) {
-        setState(() {
-          cell.visited = true;
-          if (widget.mode == GameMode.intermediate) {
-            _clearRedFields();
-            _generateRedFields();
-          }
-          _recalculateNextNumber();
-        });
-      } else {
-        _animateWrongTap(cell);
-        setState(() => wrongTaps++);
-      }
-    }
+    GameHelper.handleCellTap(
+      grid: grid,
+      row: row,
+      col: col,
+      isReversedMode: widget.isReversedMode,
+      mode: widget.mode,
+      isPunishWrongTapsActive: widget.isPunishWrongTapsActive,
+      wrongTapsIncrement: () => setState(() => wrongTaps++),
+      nextNumberCallback: (value) => setState(() => nextNumber = value),
+      refreshGrid: () => setState(() {}),
+      showWinDialog: _showWinDialog,
+    );
   }
 
   void _showWinDialog() {
+    gameTimer.stop();
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("You Won! 🎉"),
-        content: Text("Time: ${elapsedTime}s\nWrong taps: $wrongTaps"),
+        content: Text("Time: ${gameTimer.elapsedTime}s\nWrong taps: $wrongTaps"),
         actions: [
           TextButton(
             onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
@@ -194,79 +101,27 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
 
   @override
   void dispose() {
-    timer?.cancel();
+    gameTimer.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final startGameWidget = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text("Ready to start?", style: TextStyle(fontSize: 24)),
-        const SizedBox(height: 20),
-        ElevatedButton(onPressed: _startGame, child: const Text("Start Game")),
-      ],
-    );
-
-    final gameBoardWidget = Column(
-      children: [
-        const SizedBox(height: 16),
-        Text("Time: ${elapsedTime}s", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Text("Wrong taps: $wrongTaps", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              children: List.generate(gridSize, (row) {
-                return Expanded(
-                  child: Row(
-                    children: List.generate(gridSize, (col) {
-                      final cell = grid[row][col];
-                      final baseColor = widget.isReversedMode
-                          ? (cell.isRed ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
-                          : (cell.visited ? Colors.blue : (cell.isRed ? Colors.red : Colors.grey[300]!));
-                      final displayColor = cell.animateWrong ? Colors.orange : baseColor;
-
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => _onCellTapped(row, col),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            curve: Curves.easeInOut,
-                            margin: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: displayColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${cell.number}',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: (cell.visited || cell.isRed) ? Colors.white : Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-      ],
-    );
-
     return Scaffold(
       appBar: AppBar(
-        title: Text("Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}"),
+        title: Text(
+          "Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}",
+        ),
       ),
-      body: Center(child: !gameStarted ? startGameWidget : gameBoardWidget),
+      body: Center(
+        child: !gameStarted
+            ? StartGameWidget(onStart: _startGame)
+            : GameBoard(
+                grid: grid,
+                onCellTapped: _onCellTapped,
+                isReversedMode: widget.isReversedMode,
+              ),
+      ),
     );
   }
 }

@@ -28,10 +28,10 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Game Rules"),
-        content: SingleChildScrollView(
+        content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text("Simple: Tap numbers in order from 1 to 25. No red cells."),
               SizedBox(height: 8),
               Text("Intermediate: Tap numbers in order from 1 to 25. Some red cells are traps."),

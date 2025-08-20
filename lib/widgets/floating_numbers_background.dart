@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:numpuzzle/utils/platform_utils.dart';
 
 class FloatingNumbersBackground extends StatefulWidget {
   const FloatingNumbersBackground({super.key});
@@ -15,11 +14,18 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   final Random _random = Random();
   final List<_FloatingNumber> _numbers = [];
 
+  bool get isMobileWeb {
+    return kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
+    // if (!kIsWeb) return false;
+    // // Use screen width heuristic instead of UA parsing
+    // final shortestSide = MediaQueryData.fromView(WidgetsBinding.instance.window).size.shortestSide;
+    // return shortestSide < 800; // "mobile" web if narrower than 800px
+  }
+
   @override
   void initState() {
     super.initState();
 
-    // Create 15 floating numbers
     int totalNumbers = 25;
     for (int i = 0; i < totalNumbers; i++) {
       int value = i + 1;
@@ -38,21 +44,17 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(days: 1),
-    )
-      ..addListener(_updateNumbers)
-      ..repeat();
+      duration: const Duration(days: 1), // effectively infinite
+    )..addListener(_updateNumbers);
+
+    _controller.repeat();
   }
 
-  // Limit update rate to ~30 FPS
-  int _lastUpdateTime = DateTime.now().millisecondsSinceEpoch;
   void _updateNumbers() {
-    final currentTime = DateTime.now().millisecondsSinceEpoch;
-    if (currentTime - _lastUpdateTime < 33) return; // ~30 FPS
-    _lastUpdateTime = currentTime;
+    const deltaTime = 1 / 60;
 
-    const deltaTime = 1 / 30;
     for (var n in _numbers) {
+      // Smoothly interpolate speed back to target
       if (n.velocityDecayTime > 0) {
         final t = deltaTime / n.velocityDecayTime;
         n.speedX += (n.targetSpeedX - n.speedX) * t;
@@ -73,29 +75,13 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
       // Slowly grow and shrink font size
       final time = DateTime.now().millisecondsSinceEpoch / 1000;
       n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
-
-      // Update precomputed TextPainter
-      n.updateTextPainter();
     }
-
-    // Only repaint painter, not widget tree
-    if (mounted) setState(() {});
   }
 
   @override
-  Widget build(BuildContext context) {
-    final enableTouch = !isMobileWeb; // disable touch on mobile web
-
-    return RepaintBoundary(
-      child: Listener(
-        onPointerDown: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
-        onPointerMove: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
-        child: CustomPaint(
-          painter: _FloatingNumberPainter(_numbers),
-          size: Size.infinite,
-        ),
-      ),
-    );
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   void _handleTap(Offset position, BuildContext context) {
@@ -118,6 +104,27 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
         n.velocityDecayTime = 2.0;
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enableTouch = !isMobileWeb;
+
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Listener(
+            onPointerDown: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
+            onPointerMove: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
+            child: CustomPaint(
+              painter: _FloatingNumberPainter(_numbers),
+              size: Size.infinite,
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -143,8 +150,6 @@ class _FloatingNumber {
   final double sizeSpeed;
   double fontSize;
 
-  late TextPainter textPainter;
-
   _FloatingNumber({
     required this.value,
     required this.x,
@@ -162,31 +167,7 @@ class _FloatingNumber {
         baseFontSize = fontSize,
         fontSize = fontSize,
         sizePhase = Random().nextDouble() * 2 * pi,
-        sizeSpeed = 0.2 + Random().nextDouble() * 0.3 {
-    updateTextPainter();
-  }
-
-  void updateTextPainter() {
-    final textSpan = TextSpan(
-      text: value.toString(),
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.bold,
-        color: Colors.blueAccent.withOpacity(opacity),
-        shadows: [
-          Shadow(
-            blurRadius: 3.0,
-            color: Colors.blueAccent.withOpacity(opacity),
-            offset: const Offset(0, 0),
-          ),
-        ],
-      ),
-    );
-    textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    )..layout();
-  }
+        sizeSpeed = 0.2 + Random().nextDouble() * 0.3;
 }
 
 class _FloatingNumberPainter extends CustomPainter {
@@ -196,13 +177,34 @@ class _FloatingNumberPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (var n in numbers) {
+      final textSpan = TextSpan(
+        text: n.value.toString(),
+        style: TextStyle(
+          fontSize: n.fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.blueAccent.withOpacity(n.opacity),
+          shadows: [
+            Shadow(
+              blurRadius: 6.0,
+              color: Colors.blueAccent.withOpacity(n.opacity),
+              offset: const Offset(0, 0),
+            ),
+            Shadow(
+              blurRadius: 3.0,
+              color: Colors.blueAccent.withOpacity(n.opacity),
+              offset: const Offset(0, 0),
+            ),
+          ],
+        ),
+      );
+
+      final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+      textPainter.layout();
+
       canvas.save();
       canvas.translate(n.x * size.width, n.y * size.height);
       canvas.rotate(n.rotation);
-      n.textPainter.paint(
-        canvas,
-        Offset(-n.textPainter.width / 2, -n.textPainter.height / 2),
-      );
+      textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
       canvas.restore();
     }
   }

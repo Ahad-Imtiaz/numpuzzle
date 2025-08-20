@@ -1,11 +1,9 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-
 import 'package:numpuzzle/enums/game_mode.dart';
-import 'package:numpuzzle/models/cell.dart';
 import 'package:numpuzzle/models/grid_manager.dart';
-import 'package:numpuzzle/widgets/cell_widget.dart';
+import 'package:numpuzzle/widgets/game_info_panel.dart';
+import 'package:numpuzzle/widgets/grid_board.dart';
 
 class NumberPuzzleGameScreen extends StatefulWidget {
   final GameMode mode;
@@ -28,10 +26,11 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   late GridManager gridManager;
   int elapsedTime = 0;
   int wrongTaps = 0;
-  Timer? timer;
-  Timer? shuffleTimer;
   int shuffleCountdown = 2;
   bool gameStarted = false;
+
+  Timer? timer;
+  Timer? shuffleTimer;
 
   @override
   void initState() {
@@ -44,22 +43,30 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   }
 
   void _startGame() {
+    _resetGame();
+    gridManager.generateGrid();
+    _startTimers();
+  }
+
+  void _resetGame() {
     setState(() {
       gameStarted = true;
       elapsedTime = 0;
       wrongTaps = 0;
-      gridManager.generateGrid();
+      shuffleCountdown = 2;
     });
 
     timer?.cancel();
+    shuffleTimer?.cancel();
+  }
+
+  void _startTimers() {
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => elapsedTime++);
     });
 
     if (widget.mode == GameMode.hard) {
-      shuffleCountdown = 2;
-      shuffleTimer?.cancel();
       shuffleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         setState(() {
@@ -73,44 +80,71 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     }
   }
 
-  void _handleCorrectTap(Cell cell) {
+  void _onCellTapped(int row, int col) {
+    final cell = gridManager.grid[row][col];
+
+    if ((widget.isReversedMode && !cell.visited) || (!widget.isReversedMode && cell.visited)) return;
+
+    if (cell.number == gridManager.nextNumber && !cell.isLocked) {
+      _handleCorrectTap(cell);
+    } else {
+      _handleWrongTap(cell);
+    }
+  }
+
+  void _handleCorrectTap(cell) {
     setState(() {
       cell.visited = !cell.visited;
+
       if (widget.mode == GameMode.intermediate || widget.mode == GameMode.hard) {
         gridManager.clearRedFields();
         gridManager.generateRedFields();
       }
+
       gridManager.recalculateNextNumber();
+
       if (gridManager.nextNumber == -1) _showWinDialog();
     });
   }
 
-  void _handleWrongTap(Cell cell) {
+  void _handleWrongTap(cell) {
+    wrongTaps++;
+    _animateWrongCell(cell, hide: widget.isPunishWrongTapsActive);
+  }
+
+  void _animateWrongCell(cell, {required bool hide}) {
     setState(() {
       cell.animateWrong = true;
-      if (widget.isPunishWrongTapsActive) cell.isHidden = true;
-      wrongTaps++;
+      if (hide) cell.isHidden = true;
     });
 
     Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) setState(() => cell.animateWrong = false);
+      if (!mounted) return;
+      setState(() {
+        cell.animateWrong = false;
+      });
     });
 
-    if (widget.isPunishWrongTapsActive) {
+    if (hide) {
       Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) setState(() => cell.isHidden = false);
+        if (!mounted) return;
+        setState(() {
+          cell.isHidden = false;
+        });
       });
     }
   }
 
-  void _onCellTapped(int row, int col) {
-    final cell = gridManager.grid[row][col];
-    if ((widget.isReversedMode && !cell.visited) || (!widget.isReversedMode && cell.visited)) return;
-
-    (cell.number == gridManager.nextNumber && !cell.isLocked) ? _handleCorrectTap(cell) : _handleWrongTap(cell);
+  void _stopTimers() {
+    timer?.cancel();
+    shuffleTimer?.cancel();
+    timer = null;
+    shuffleTimer = null;
   }
 
   void _showWinDialog() {
+    _stopTimers();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -136,78 +170,56 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!gameStarted) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text("Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}"),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text("Ready to start?", style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _startGame,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white),
-                ),
-                child: const Text("Start Game"),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text("Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}"),
+        title: Text(
+          "Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}",
+        ),
       ),
-      body: Column(
+      body: gameStarted ? _buildGameUI() : _buildStartUI(),
+    );
+  }
+
+  Widget _buildStartUI() => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("Ready to start?", style: TextStyle(fontSize: 24)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _startGame,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white),
+              ),
+              child: const Text("Start Game"),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildGameUI() => Column(
         children: [
           const SizedBox(height: 16),
-          Text("Time: ${elapsedTime}s", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          Text("Wrong taps: $wrongTaps", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          if (widget.mode == GameMode.hard)
-            Text("Time until shift: $shuffleCountdown",
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          GameInfoPanel(
+            elapsedTime: elapsedTime,
+            wrongTaps: wrongTaps,
+            shuffleCountdown: widget.mode == GameMode.hard ? shuffleCountdown : null,
+            mode: widget.mode,
+          ),
           const SizedBox(height: 32),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final cellSize = (constraints.maxWidth - (gridSize - 1) * 8) / gridSize;
-
-                  return Stack(
-                    children: [
-                      for (int row = 0; row < gridSize; row++)
-                        for (int col = 0; col < gridSize; col++)
-                          AnimatedPositioned(
-                            key: ValueKey(gridManager.grid[row][col].number),
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.easeInOut,
-                            left: col * (cellSize + 4),
-                            top: row * (cellSize + 4),
-                            width: cellSize,
-                            height: cellSize,
-                            child: CellWidget(
-                              cell: gridManager.grid[row][col],
-                              isReversedMode: widget.isReversedMode,
-                              onTap: () => _onCellTapped(row, col),
-                            ),
-                          ),
-                    ],
-                  );
-                },
+              child: GridBoard(
+                gridManager: gridManager,
+                gridSize: gridSize,
+                isReversedMode: widget.isReversedMode,
+                onCellTapped: _onCellTapped,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
+      );
 }

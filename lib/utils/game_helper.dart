@@ -54,14 +54,14 @@ class GameHelper {
     for (var row in grid) {
       for (var cell in row) {
         if ((isReversedMode && cell.visited) || (!isReversedMode && !cell.visited)) {
-          if (cell.number != nextNumber) cell.isRed = false;
+          if (cell.number != nextNumber) cell.isLocked = false;
         }
       }
     }
 
     selectableCells.shuffle();
     for (int i = 0; i < redCount; i++) {
-      selectableCells[i].isRed = true;
+      selectableCells[i].isLocked = true;
     }
   }
 }

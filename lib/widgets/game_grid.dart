@@ -25,8 +25,8 @@ class GameGrid extends StatelessWidget {
             children: List.generate(gridSize, (col) {
               final cell = grid[row][col];
               final baseColor = isReversedMode
-                  ? (cell.isRed ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
-                  : (cell.visited ? Colors.blue : (cell.isRed ? Colors.red : Colors.grey[300]!));
+                  ? (cell.isLocked ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
+                  : (cell.visited ? Colors.blue : (cell.isLocked ? Colors.red : Colors.grey[300]!));
               final displayColor = cell.animateWrong ? Colors.orange : baseColor;
 
               return Expanded(
@@ -46,7 +46,7 @@ class GameGrid extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: (cell.visited || cell.isRed) ? Colors.white : Colors.black,
+                          color: (cell.visited || cell.isLocked) ? Colors.white : Colors.black,
                         ),
                       ),
                     ),

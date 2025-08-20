@@ -81,14 +81,14 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     for (var row in grid) {
       for (var cell in row) {
         if ((widget.isReversedMode && cell.visited) || (!widget.isReversedMode && !cell.visited)) {
-          if (cell.number != nextNumber) cell.isRed = false;
+          if (cell.number != nextNumber) cell.isLocked = false;
         }
       }
     }
 
     selectableCells.shuffle();
     for (int i = 0; i < redCount; i++) {
-      selectableCells[i].isRed = true;
+      selectableCells[i].isLocked = true;
     }
   }
 
@@ -109,15 +109,15 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   void _clearRedFields() {
     for (var row in grid) {
       for (var cell in row) {
-        cell.isRed = false;
+        cell.isLocked = false;
       }
     }
   }
 
   void _recalculateNextNumber() {
     final selectable = grid.expand((r) => r).where((c) {
-      if (widget.isReversedMode) return c.visited && !c.isRed;
-      return !c.visited && !c.isRed;
+      if (widget.isReversedMode) return c.visited && !c.isLocked;
+      return !c.visited && !c.isLocked;
     }).toList();
 
     if (selectable.isEmpty) {
@@ -131,8 +131,18 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
         : selectable.map((c) => c.number).reduce(min);
   }
 
+  void _handleCorrectTap(Cell cell) {
+    setState(() {
+      cell.visited = !cell.visited;
+      if (widget.mode == GameMode.intermediate) {
+        _clearRedFields();
+        _generateRedFields();
+      }
+      _recalculateNextNumber();
+    });
+  }
+
   void _handleWrongTap(Cell cell) {
-    // Batch immediate state changes
     setState(() {
       cell.animateWrong = true;
       if (widget.isPunishWrongTapsActive) cell.isHidden = true;
@@ -146,8 +156,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
       }
     });
 
-    // Restore number after 2s if punish is active
     if (widget.isPunishWrongTapsActive) {
+      // Restore number visibility after 2s
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
           setState(() => cell.isHidden = false);
@@ -159,35 +169,11 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   void _onCellTapped(int row, int col) {
     Cell cell = grid[row][col];
 
-    if (widget.isReversedMode) {
-      if (!cell.visited) return;
-      if (cell.number == nextNumber && !cell.isRed) {
-        setState(() {
-          cell.visited = false;
-          if (widget.mode == GameMode.intermediate) {
-            _clearRedFields();
-            _generateRedFields();
-          }
-          _recalculateNextNumber();
-        });
-      } else {
-        _handleWrongTap(cell);
-      }
-    } else {
-      if (cell.visited) return;
-      if (cell.number == nextNumber && !cell.isRed) {
-        setState(() {
-          cell.visited = true;
-          if (widget.mode == GameMode.intermediate) {
-            _clearRedFields();
-            _generateRedFields();
-          }
-          _recalculateNextNumber();
-        });
-      } else {
-        _handleWrongTap(cell);
-      }
+    if ((widget.isReversedMode && !cell.visited) || (!widget.isReversedMode && cell.visited)) {
+      return;
     }
+
+    (cell.number == nextNumber && !cell.isLocked) ? _handleCorrectTap(cell) : _handleWrongTap(cell);
   }
 
   void _showWinDialog() {
@@ -219,7 +205,15 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
       children: [
         const Text("Ready to start?", style: TextStyle(fontSize: 24)),
         const SizedBox(height: 20),
-        ElevatedButton(onPressed: _startGame, child: const Text("Start Game")),
+        ElevatedButton(
+          onPressed: _startGame,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            side: const BorderSide(color: Colors.white),
+          ),
+          child: const Text("Start Game"),
+        ),
       ],
     );
 
@@ -238,8 +232,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
                     children: List.generate(gridSize, (col) {
                       final cell = grid[row][col];
                       final baseColor = widget.isReversedMode
-                          ? (cell.isRed ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
-                          : (cell.visited ? Colors.blue : (cell.isRed ? Colors.red : Colors.grey[300]!));
+                          ? (cell.isLocked ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
+                          : (cell.visited ? Colors.blue : (cell.isLocked ? Colors.red : Colors.grey[300]!));
                       final displayColor = cell.animateWrong ? Colors.orange : baseColor;
 
                       return Expanded(
@@ -259,7 +253,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: (cell.visited || cell.isRed) ? Colors.white : Colors.black,
+                                  color: (cell.visited || cell.isLocked) ? Colors.white : Colors.black,
                                 ),
                               ),
                             ),

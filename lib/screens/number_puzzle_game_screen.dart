@@ -1,6 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import 'package:numpuzzle/enums/game_mode.dart';
+import 'package:numpuzzle/models/cell.dart';
 import 'package:numpuzzle/models/grid_manager.dart';
 import 'package:numpuzzle/widgets/game_info_panel.dart';
 import 'package:numpuzzle/widgets/grid_board.dart';
@@ -92,7 +95,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     }
   }
 
-  void _handleCorrectTap(cell) {
+  void _handleCorrectTap(Cell cell) {
     setState(() {
       cell.visited = !cell.visited;
 
@@ -112,7 +115,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     _animateWrongCell(cell, hide: widget.isPunishWrongTapsActive);
   }
 
-  void _animateWrongCell(cell, {required bool hide}) {
+  void _animateWrongCell(Cell cell, {required bool hide}) {
     setState(() {
       cell.animateWrong = true;
       if (hide) cell.isHidden = true;
@@ -180,46 +183,48 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     );
   }
 
-  Widget _buildStartUI() => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Ready to start?", style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _startGame,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white),
-              ),
-              child: const Text("Start Game"),
-            ),
-          ],
-        ),
-      );
-
-  Widget _buildGameUI() => Column(
+  Widget _buildStartUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 16),
-          GameInfoPanel(
-            elapsedTime: elapsedTime,
-            wrongTaps: wrongTaps,
-            shuffleCountdown: widget.mode == GameMode.hard ? shuffleCountdown : null,
-            mode: widget.mode,
-          ),
-          const SizedBox(height: 32),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GridBoard(
-                gridManager: gridManager,
-                gridSize: gridSize,
-                isReversedMode: widget.isReversedMode,
-                onCellTapped: _onCellTapped,
-              ),
+          const Text("Ready to start?", style: TextStyle(fontSize: 24)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: _startGame,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white),
             ),
+            child: const Text("Start Game"),
           ),
         ],
-      );
+      ),
+    );
+  }
+
+  Widget _buildGameUI() {
+    return Column(children: [
+      const SizedBox(height: 16),
+      GameInfoPanel(
+        elapsedTime: elapsedTime,
+        wrongTaps: wrongTaps,
+        shuffleCountdown: widget.mode == GameMode.hard ? shuffleCountdown : null,
+        mode: widget.mode,
+      ),
+      const SizedBox(height: 32),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: GridBoard(
+            gridManager: gridManager,
+            gridSize: gridSize,
+            isReversedMode: widget.isReversedMode,
+            onCellTapped: _onCellTapped,
+          ),
+        ),
+      ),
+    ]);
+  }
 }

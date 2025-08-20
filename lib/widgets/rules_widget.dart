@@ -8,21 +8,25 @@ class RulesWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final rules = [
       {
-        "Simple": "\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25.",
+        'Simple': '\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25.',
       },
       {
-        "Easy": "\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25. Some red cells are traps.",
+        'Easy': '\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25. Some red cells are traps.',
       },
       {
-        "Intermediate":
-            "\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25. Red cells appear and change dynamically.",
+        'Intermediate':
+            '\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25. Red cells appear and change dynamically.',
       },
       {
-        "Reversed Mode": "\nStart with all cells selected and unselect them in order.",
+        'Hard': '\n${!kIsWeb ? 'Tap' : 'Click'} numbers in order from 1 to 25. Red cells appear and change dynamically.'
+            '\nRows and Columns shift periodically.',
       },
       {
-        "Punish Wrong ${!kIsWeb ? 'Taps' : 'Clicks'}":
-            "\nWrong ${!kIsWeb ? 'taps' : 'clicks'} will make the number in the selected cells disappear for 2 seconds.",
+        'Reversed Mode': '\nStart with all cells selected and unselect them in order.',
+      },
+      {
+        'Punish Wrong ${!kIsWeb ? 'Taps' : 'Clicks'}':
+            '\nWrong ${!kIsWeb ? 'taps' : 'clicks'} will make the number in the selected cells disappear for 2 seconds.',
       },
     ];
 

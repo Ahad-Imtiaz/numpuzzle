@@ -28,6 +28,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   int nextNumber = 1;
   int elapsedTime = 0;
   Timer? timer;
+  Timer? shuffleTimer;
+  int shuffleCountdown = 2;
   bool gameStarted = false;
   int wrongTaps = 0;
   final Random random = Random();
@@ -65,16 +67,17 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
       return !c.visited && c.number != nextNumber;
     }).toList();
 
-    int redCount = 0;
+    int lockedCellCount = 0;
     switch (widget.mode) {
       case GameMode.easy:
-        redCount = min(4 + random.nextInt(10), selectableCells.length);
+        lockedCellCount = min(4 + random.nextInt(10), selectableCells.length);
         break;
       case GameMode.intermediate:
-        redCount = min(3 + random.nextInt(4), selectableCells.length);
+      case GameMode.hard:
+        lockedCellCount = min(3 + random.nextInt(4), selectableCells.length);
         break;
       case GameMode.simple:
-        redCount = 0;
+        lockedCellCount = 0;
         break;
     }
 
@@ -87,7 +90,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     }
 
     selectableCells.shuffle();
-    for (int i = 0; i < redCount; i++) {
+    for (int i = 0; i < lockedCellCount; i++) {
       selectableCells[i].isLocked = true;
     }
   }
@@ -102,8 +105,28 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
 
     timer?.cancel();
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+
       setState(() => elapsedTime++);
     });
+
+    if (widget.mode == GameMode.hard) {
+      shuffleCountdown = 2;
+
+      shuffleTimer?.cancel();
+      shuffleTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) return;
+        setState(() {
+          shuffleCountdown--;
+
+          if (shuffleCountdown <= 0) {
+            _shuffleGrid();
+            // Reset countdown
+            shuffleCountdown = 2;
+          }
+        });
+      });
+    }
   }
 
   void _clearRedFields() {
@@ -114,6 +137,34 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
     }
   }
 
+  void _shuffleGrid() {
+    setState(() {
+      if (random.nextBool()) {
+        // shuffle row
+        int rowIndex1 = random.nextInt(gridSize);
+        int rowIndex2 = random.nextInt(gridSize);
+        while (rowIndex1 == rowIndex2) {
+          rowIndex2 = random.nextInt(gridSize);
+        }
+        final temp = grid[rowIndex1];
+        grid[rowIndex1] = grid[rowIndex2];
+        grid[rowIndex2] = temp;
+      } else {
+        // shuffle column
+        int colIndex1 = random.nextInt(gridSize);
+        int colIndex2 = random.nextInt(gridSize);
+        while (colIndex1 == colIndex2) {
+          colIndex2 = random.nextInt(gridSize);
+        }
+        for (int i = 0; i < gridSize; i++) {
+          final temp = grid[i][colIndex1];
+          grid[i][colIndex1] = grid[i][colIndex2];
+          grid[i][colIndex2] = temp;
+        }
+      }
+    });
+  }
+
   void _recalculateNextNumber() {
     final selectable = grid.expand((r) => r).where((c) {
       if (widget.isReversedMode) return c.visited && !c.isLocked;
@@ -122,6 +173,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
 
     if (selectable.isEmpty) {
       timer?.cancel();
+      shuffleTimer?.cancel();
+      if (!mounted) return;
       _showWinDialog();
       return;
     }
@@ -134,7 +187,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   void _handleCorrectTap(Cell cell) {
     setState(() {
       cell.visited = !cell.visited;
-      if (widget.mode == GameMode.intermediate) {
+      if (widget.mode == GameMode.intermediate || widget.mode == GameMode.hard) {
         _clearRedFields();
         _generateRedFields();
       }
@@ -196,6 +249,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    shuffleTimer?.cancel();
     super.dispose();
   }
 
@@ -218,58 +272,69 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
       ],
     );
 
-    final gameBoardWidget = Column(
-      children: [
-        const SizedBox(height: 16),
-        Text("Time: ${elapsedTime}s", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Text("Wrong taps: $wrongTaps", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              children: List.generate(gridSize, (row) {
-                return Expanded(
-                  child: Row(
-                    children: List.generate(gridSize, (col) {
-                      final cell = grid[row][col];
-                      final baseColor = widget.isReversedMode
-                          ? (cell.isLocked ? Colors.red : (cell.visited ? Colors.blue : Colors.grey[300]!))
-                          : (cell.visited ? Colors.blue : (cell.isLocked ? Colors.red : Colors.grey[300]!));
-                      final displayColor = cell.animateWrong ? Colors.orange : baseColor;
+    final gameBoardWidget = Column(children: [
+      const SizedBox(height: 16),
+      Text("Time: ${elapsedTime}s", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      Text("Wrong taps: $wrongTaps", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      if (widget.mode == GameMode.hard)
+        Text("Time until shift: $shuffleCountdown", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 32),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final cellSize = (constraints.maxWidth - (gridSize - 1) * 8) / gridSize;
 
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => _onCellTapped(row, col),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            curve: Curves.easeInOut,
-                            margin: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: displayColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                cell.isHidden ? '' : cell.number.toString(),
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: (cell.visited || cell.isLocked) ? Colors.white : Colors.black,
-                                ),
+              return Stack(children: [
+                for (int row = 0; row < gridSize; row++)
+                  for (int col = 0; col < gridSize; col++)
+                    AnimatedPositioned(
+                      key: ValueKey(grid[row][col].number),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                      left: col * (cellSize + 8),
+                      top: row * (cellSize + 8),
+                      width: cellSize,
+                      height: cellSize,
+                      child: GestureDetector(
+                        onTap: () => _onCellTapped(row, col),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          curve: Curves.easeInOut,
+                          margin: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: grid[row][col].animateWrong
+                                ? Colors.orange
+                                : widget.isReversedMode
+                                    ? (grid[row][col].isLocked
+                                        ? Colors.red
+                                        : (grid[row][col].visited ? Colors.blue : Colors.grey[300]!))
+                                    : (grid[row][col].visited
+                                        ? Colors.blue
+                                        : (grid[row][col].isLocked ? Colors.red : Colors.grey[300]!)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              grid[row][col].isHidden ? '' : grid[row][col].number.toString(),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    (grid[row][col].visited || grid[row][col].isLocked) ? Colors.white : Colors.black,
                               ),
                             ),
                           ),
                         ),
-                      );
-                    }),
-                  ),
-                );
-              }),
-            ),
+                      ),
+                    ),
+              ]);
+            },
           ),
         ),
-      ],
-    );
+      ),
+    ]);
 
     return Scaffold(
       appBar: AppBar(

@@ -43,6 +43,7 @@ class GameHelper {
         redCount = min(4 + random.nextInt(10), selectableCells.length);
         break;
       case GameMode.intermediate:
+      case GameMode.hard:
         redCount = min(3 + random.nextInt(4), selectableCells.length);
         break;
       case GameMode.simple:

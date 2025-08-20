@@ -179,6 +179,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   void _showWinDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text("You Won! 🎉"),
         content: Text("Time: ${elapsedTime}s\nWrong taps: $wrongTaps"),

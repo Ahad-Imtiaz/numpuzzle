@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:numpuzzle/enums/game_mode.dart';
 import 'package:numpuzzle/screens/number_puzzle_game_screen.dart';
 import 'package:numpuzzle/widgets/floating_numbers_background.dart';
 import 'package:numpuzzle/widgets/label_check_box.dart';
+import 'package:numpuzzle/widgets/rules_widget.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -34,23 +36,10 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Game Rules"),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Simple: Tap numbers in order from 1 to 25. No red cells."),
-              SizedBox(height: 8),
-              Text("Intermediate: Tap numbers in order from 1 to 25. Some red cells are traps."),
-              SizedBox(height: 8),
-              Text("Hard: Tap numbers in order from 1 to 25. Red cells appear and change dynamically."),
-              SizedBox(height: 8),
-              Text("Reversed Mode: Start with all cells selected and unselect them in order."),
-            ],
-          ),
-        ),
+        content: const SingleChildScrollView(child: RulesWidget()),
         actions: [
           TextButton(
-            onPressed: Navigator.of(_).pop,
+            onPressed: () => Navigator.pop(context),
             child: const Text("OK"),
           ),
         ],
@@ -75,7 +64,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
               ),
               const SizedBox(height: 10),
               LabeledCheckbox(
-                label: "Punish Wrong Taps",
+                label: "Punish Wrong ${!kIsWeb ? 'Taps' : 'Clicks'}",
                 value: _isPunishWrongTapsActive,
                 onChanged: (val) => setState(() => _isPunishWrongTapsActive = val),
               ),

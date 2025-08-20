@@ -3,17 +3,19 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import 'package:numpuzzle/utils/game_helper.dart';
+import 'package:numpuzzle/enums/game_mode.dart';
 import 'package:numpuzzle/models/cell.dart';
 
 class NumberPuzzleGameScreen extends StatefulWidget {
   final GameMode mode;
   final bool isReversedMode;
+  final bool isPunishWrongTapsActive;
 
   const NumberPuzzleGameScreen({
     super.key,
     required this.mode,
     required this.isReversedMode,
+    required this.isPunishWrongTapsActive,
   });
 
   @override
@@ -129,15 +131,29 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
         : selectable.map((c) => c.number).reduce(min);
   }
 
-  void _animateWrongTap(Cell cell) {
+  void _handleWrongTap(Cell cell) {
+    // Batch immediate state changes
     setState(() {
       cell.animateWrong = true;
+      if (widget.isPunishWrongTapsActive) cell.isHidden = true;
+      wrongTaps++;
     });
+
+    // Reset animation after 200ms
     Future.delayed(const Duration(milliseconds: 200), () {
-      setState(() {
-        cell.animateWrong = false;
-      });
+      if (mounted) {
+        setState(() => cell.animateWrong = false);
+      }
     });
+
+    // Restore number after 2s if punish is active
+    if (widget.isPunishWrongTapsActive) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => cell.isHidden = false);
+        }
+      });
+    }
   }
 
   void _onCellTapped(int row, int col) {
@@ -155,8 +171,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
           _recalculateNextNumber();
         });
       } else {
-        _animateWrongTap(cell);
-        setState(() => wrongTaps++);
+        _handleWrongTap(cell);
       }
     } else {
       if (cell.visited) return;
@@ -170,8 +185,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
           _recalculateNextNumber();
         });
       } else {
-        _animateWrongTap(cell);
-        setState(() => wrongTaps++);
+        _handleWrongTap(cell);
       }
     }
   }
@@ -241,7 +255,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                '${cell.number}',
+                                cell.isHidden ? '' : cell.number.toString(),
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,

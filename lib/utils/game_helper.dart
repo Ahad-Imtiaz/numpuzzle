@@ -1,8 +1,7 @@
 import 'dart:math';
 
+import 'package:numpuzzle/enums/game_mode.dart';
 import 'package:numpuzzle/models/cell.dart';
-
-enum GameMode { simple, easy, intermediate }
 
 class GameHelper {
   static List<List<Cell>> generateGrid(int gridSize, GameMode mode, bool isReversedMode) {

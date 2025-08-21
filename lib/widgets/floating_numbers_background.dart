@@ -1,6 +1,9 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+
+import 'package:numpuzzle/utils/platform_util.dart';
 
 class FloatingNumbersBackground extends StatefulWidget {
   const FloatingNumbersBackground({super.key});
@@ -10,56 +13,65 @@ class FloatingNumbersBackground extends StatefulWidget {
 }
 
 class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+  late final Ticker _ticker;
   final Random _random = Random();
   final List<_FloatingNumber> _numbers = [];
 
-  bool get isMobileWeb {
-    return kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
-    // if (!kIsWeb) return false;
-    // // Use screen width heuristic instead of UA parsing
-    // final shortestSide = MediaQueryData.fromView(WidgetsBinding.instance.window).size.shortestSide;
-    // return shortestSide < 800; // "mobile" web if narrower than 800px
-  }
+  Duration _lastTick = Duration.zero;
+  bool get _isWebMobile => PlatformUtil.isMobileWeb;
 
   @override
   void initState() {
     super.initState();
 
-    int totalNumbers = 25;
+    // Keep 25 as in your last snippet.
+    const totalNumbers = 25;
     for (int i = 0; i < totalNumbers; i++) {
-      int value = i + 1;
-      _numbers.add(_FloatingNumber(
-        value: value,
-        x: _random.nextDouble(),
-        y: _random.nextDouble(),
-        speedX: (_random.nextDouble() - 0.5) * 0.001,
-        speedY: (_random.nextDouble() - 0.5) * 0.001,
-        rotation: _random.nextDouble() * pi * 2,
-        rotationSpeed: (_random.nextDouble() - 0.5) * 0.001,
-        opacity: 0.15 + _random.nextDouble() * 0.45,
-        fontSize: 7 + _random.nextDouble() * 25,
-      ));
+      final value = i + 1;
+      final opacity = _isWebMobile ? 0.25 : (0.15 + _random.nextDouble() * 0.45);
+
+      final sx = (_random.nextDouble() - 0.5) * 0.001;
+      final sy = (_random.nextDouble() - 0.5) * 0.001;
+
+      _numbers.add(
+        _FloatingNumber(
+          value: value,
+          x: _random.nextDouble(),
+          y: _random.nextDouble(),
+          speedX: sx,
+          speedY: sy,
+          rotation: _random.nextDouble() * pi * 2,
+          rotationSpeed: (_random.nextDouble() - 0.5) * 0.001,
+          opacity: opacity,
+          fontSize: _isWebMobile ? (10 + _random.nextDouble() * 15) : (7 + _random.nextDouble() * 25),
+          useShadows: !_isWebMobile, // cheaper on mobile web
+        ),
+      );
     }
 
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(days: 1), // effectively infinite
-    )..addListener(_updateNumbers);
+    _ticker = createTicker((elapsed) {
+      // Throttle to ~30fps on mobile web for perf.
+      if (_isWebMobile && (elapsed - _lastTick) < const Duration(milliseconds: 33)) return;
+      _lastTick = elapsed;
 
-    _controller.repeat();
+      _updateNumbers();
+      setState(() {});
+    })
+      ..start();
   }
 
   void _updateNumbers() {
-    const deltaTime = 1 / 60;
+    const deltaTime = 1 / 60; // integrate at ~60Hz
 
     for (var n in _numbers) {
-      // Smoothly interpolate speed back to target
-      if (n.velocityDecayTime > 0) {
-        final t = deltaTime / n.velocityDecayTime;
+      // Smoothly interpolate speed back to the original target over time.
+      if (n.decayRemaining > 0) {
+        // proportion of remaining decay to apply this frame; clamp to [0, 1]
+        final t = (deltaTime / n.decayRemaining).clamp(0.0, 1.0);
         n.speedX += (n.targetSpeedX - n.speedX) * t;
         n.speedY += (n.targetSpeedY - n.speedY) * t;
-        n.velocityDecayTime -= deltaTime;
+        n.decayRemaining -= deltaTime;
+        if (n.decayRemaining < 0) n.decayRemaining = 0;
       }
 
       n.x += n.speedX;
@@ -72,57 +84,58 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
       if (n.y < -0.1) n.y = 1.1;
       if (n.y > 1.1) n.y = -0.1;
 
-      // Slowly grow and shrink font size
-      final time = DateTime.now().millisecondsSinceEpoch / 1000;
-      n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
+      // Animate font size (desktop/native only)
+      if (!_isWebMobile) {
+        final time = DateTime.now().millisecondsSinceEpoch / 1000;
+        n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
+        n.maybeUpdatePainter(); // lazy relayout only when size changed enough
+      }
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
   void _handleTap(Offset position, BuildContext context) {
-    final tapX = position.dx / MediaQuery.of(context).size.width;
-    final tapY = position.dy / MediaQuery.of(context).size.height;
+    if (_isWebMobile) return; // interactivity off on mobile web for perf
+
+    final size = MediaQuery.of(context).size;
+    final tapX = position.dx / size.width;
+    final tapY = position.dy / size.height;
 
     for (var n in _numbers) {
       final dx = n.x - tapX;
       final dy = n.y - tapY;
-      final dist = sqrt(dx * dx + dy * dy);
+      final distSq = dx * dx + dy * dy;
+      const radius = 0.15;
+      if (distSq < radius * radius) {
+        final dist = sqrt(distSq).clamp(0.0001, 10.0); // avoid div-by-zero
 
-      if (dist < 0.15) {
-        // Push away
+        // Push away from the tap
         n.speedX += dx / dist * 0.02;
         n.speedY += dy / dist * 0.02;
 
-        // Smoothly return to original over 2 seconds
+        // Then smoothly return to original speed over 2 seconds
         n.targetSpeedX = n.originalSpeedX;
         n.targetSpeedY = n.originalSpeedY;
-        n.velocityDecayTime = 2.0;
+        n.decayRemaining = 2.0; // seconds back to baseline
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final enableTouch = !isMobileWeb;
-
     return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return Listener(
-            onPointerDown: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
-            onPointerMove: enableTouch ? (event) => _handleTap(event.localPosition, context) : null,
-            child: CustomPaint(
-              painter: _FloatingNumberPainter(_numbers),
-              size: Size.infinite,
-            ),
-          );
-        },
+      child: Listener(
+        onPointerDown: !_isWebMobile ? (e) => _handleTap(e.localPosition, context) : null,
+        onPointerMove: !_isWebMobile ? (e) => _handleTap(e.localPosition, context) : null,
+        child: CustomPaint(
+          painter: _FloatingNumberPainter(_numbers),
+          size: Size.infinite,
+        ),
       ),
     );
   }
@@ -131,24 +144,35 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 class _FloatingNumber {
   double x;
   double y;
+
+  // Current speed
   double speedX;
   double speedY;
+
+  // Baseline/original speed (what we return to)
   final double originalSpeedX;
   final double originalSpeedY;
 
+  // Target speed for decay back to baseline
   double targetSpeedX;
   double targetSpeedY;
-  double velocityDecayTime = 0;
+
+  // Time remaining to decay back (seconds)
+  double decayRemaining = 0;
 
   double rotation;
   double rotationSpeed;
   final int value;
   final double opacity;
   final double baseFontSize;
+  final bool useShadows;
 
   final double sizePhase;
   final double sizeSpeed;
   double fontSize;
+
+  final TextPainter painter;
+  double _lastLaidOutFontSize;
 
   _FloatingNumber({
     required this.value,
@@ -160,14 +184,73 @@ class _FloatingNumber {
     required this.rotationSpeed,
     required this.opacity,
     required double fontSize,
-  })  : originalSpeedX = speedX,
+    required this.useShadows,
+  })  : baseFontSize = fontSize,
+        fontSize = fontSize,
+        originalSpeedX = speedX,
         originalSpeedY = speedY,
         targetSpeedX = speedX,
         targetSpeedY = speedY,
-        baseFontSize = fontSize,
-        fontSize = fontSize,
         sizePhase = Random().nextDouble() * 2 * pi,
-        sizeSpeed = 0.2 + Random().nextDouble() * 0.3;
+        sizeSpeed = 0.2 + Random().nextDouble() * 0.3,
+        painter = TextPainter(
+          text: TextSpan(
+            text: value.toString(),
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueAccent.withOpacity(opacity),
+              shadows: useShadows
+                  ? [
+                      Shadow(
+                        blurRadius: 6.0,
+                        color: Colors.blueAccent.withOpacity(opacity),
+                        offset: Offset.zero,
+                      ),
+                      Shadow(
+                        blurRadius: 3.0,
+                        color: Colors.blueAccent.withOpacity(opacity),
+                        offset: Offset.zero,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        ),
+        _lastLaidOutFontSize = fontSize {
+    painter.layout();
+  }
+
+  /// Only relayout when the font size changes meaningfully to reduce cost.
+  void maybeUpdatePainter() {
+    if ((fontSize - _lastLaidOutFontSize).abs() >= 0.5) {
+      painter.text = TextSpan(
+        text: value.toString(),
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.blueAccent.withOpacity(opacity),
+          shadows: useShadows
+              ? [
+                  Shadow(
+                    blurRadius: 6.0,
+                    color: Colors.blueAccent.withOpacity(opacity),
+                    offset: Offset.zero,
+                  ),
+                  Shadow(
+                    blurRadius: 3.0,
+                    color: Colors.blueAccent.withOpacity(opacity),
+                    offset: Offset.zero,
+                  ),
+                ]
+              : null,
+        ),
+      );
+      painter.layout();
+      _lastLaidOutFontSize = fontSize;
+    }
+  }
 }
 
 class _FloatingNumberPainter extends CustomPainter {
@@ -177,34 +260,10 @@ class _FloatingNumberPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (var n in numbers) {
-      final textSpan = TextSpan(
-        text: n.value.toString(),
-        style: TextStyle(
-          fontSize: n.fontSize,
-          fontWeight: FontWeight.bold,
-          color: Colors.blueAccent.withOpacity(n.opacity),
-          shadows: [
-            Shadow(
-              blurRadius: 6.0,
-              color: Colors.blueAccent.withOpacity(n.opacity),
-              offset: const Offset(0, 0),
-            ),
-            Shadow(
-              blurRadius: 3.0,
-              color: Colors.blueAccent.withOpacity(n.opacity),
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
-      );
-
-      final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
-      textPainter.layout();
-
       canvas.save();
       canvas.translate(n.x * size.width, n.y * size.height);
       canvas.rotate(n.rotation);
-      textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+      n.painter.paint(canvas, Offset(-n.painter.width / 2, -n.painter.height / 2));
       canvas.restore();
     }
   }

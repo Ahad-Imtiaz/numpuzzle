@@ -24,11 +24,10 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   void initState() {
     super.initState();
 
-    // Keep 25 as in your last snippet.
     const totalNumbers = 25;
     for (int i = 0; i < totalNumbers; i++) {
       final value = i + 1;
-      final opacity = _isWebMobile ? 0.25 : (0.15 + _random.nextDouble() * 0.45);
+      final opacity = _isWebMobile ? 0.75 : (0.15 + _random.nextDouble() * 0.45);
 
       final sx = (_random.nextDouble() - 0.5) * 0.001;
       final sy = (_random.nextDouble() - 0.5) * 0.001;
@@ -44,7 +43,7 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
           rotationSpeed: (_random.nextDouble() - 0.5) * 0.001,
           opacity: opacity,
           fontSize: _isWebMobile ? (10 + _random.nextDouble() * 15) : (7 + _random.nextDouble() * 25),
-          useShadows: !_isWebMobile, // cheaper on mobile web
+          useShadows: !_isWebMobile,
         ),
       );
     }
@@ -84,7 +83,7 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
       if (n.y < -0.1) n.y = 1.1;
       if (n.y > 1.1) n.y = -0.1;
 
-      // Animate font size (desktop/native only)
+      // Animate font size (mobile web excluded)
       if (!_isWebMobile) {
         final time = DateTime.now().millisecondsSinceEpoch / 1000;
         n.fontSize = n.baseFontSize * (0.9 + 0.2 * sin(time * n.sizeSpeed + n.sizePhase));
@@ -100,7 +99,7 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   }
 
   void _handleTap(Offset position, BuildContext context) {
-    if (_isWebMobile) return; // interactivity off on mobile web for perf
+    if (_isWebMobile) return; // interactivity off on mobile web for performance
 
     final size = MediaQuery.of(context).size;
     final tapX = position.dx / size.width;

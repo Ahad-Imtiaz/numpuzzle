@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:numpuzzle/models/cell.dart';
@@ -34,7 +35,7 @@ class CellWidget extends StatelessWidget {
           child: Text(
             cell.isHidden ? '' : cell.number.toString(),
             style: TextStyle(
-              fontSize: 20,
+              fontSize: kIsWeb ? 28 : 20,
               fontWeight: FontWeight.bold,
               color: (cell.visited || cell.isLocked) ? Colors.white : Colors.black,
             ),

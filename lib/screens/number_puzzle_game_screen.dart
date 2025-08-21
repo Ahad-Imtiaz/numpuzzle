@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import 'package:numpuzzle/enums/game_mode.dart';
 import 'package:numpuzzle/models/cell.dart';
 import 'package:numpuzzle/models/grid_manager.dart';
+import 'package:numpuzzle/widgets/confetti_component.dart';
 import 'package:numpuzzle/widgets/game_info_panel.dart';
 import 'package:numpuzzle/widgets/grid_board.dart';
 
@@ -35,6 +37,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   Timer? timer;
   Timer? shuffleTimer;
 
+  late ConfettiController _confettiController;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +47,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
       mode: widget.mode,
       isReversedMode: widget.isReversedMode,
     );
+
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
   }
 
   void _startGame() {
@@ -147,6 +153,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
 
   void _showWinDialog() {
     _stopTimers();
+    _confettiController.play();
 
     showDialog(
       context: context,
@@ -168,6 +175,8 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   void dispose() {
     timer?.cancel();
     shuffleTimer?.cancel();
+    _confettiController.dispose();
+
     super.dispose();
   }
 
@@ -179,7 +188,13 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
           "Number Puzzle - ${widget.mode.name} ${widget.isReversedMode ? '(Reversed)' : ''}",
         ),
       ),
-      body: gameStarted ? _buildGameUI() : _buildStartUI(),
+      body: Stack(
+        alignment: Alignment.center,
+        children: [
+          gameStarted ? _buildGameUI() : _buildStartUI(),
+          ConfettiComponent(confettiController: _confettiController),
+        ],
+      ),
     );
   }
 

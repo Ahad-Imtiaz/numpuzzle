@@ -1,6 +1,8 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
+
+import 'package:numpuzzle/utils/platform_util.dart';
 
 class FloatingNumbersBackground extends StatefulWidget {
   const FloatingNumbersBackground({super.key});
@@ -13,14 +15,6 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
   late final AnimationController _controller;
   final Random _random = Random();
   final List<_FloatingNumber> _numbers = [];
-
-  bool get isMobileWeb {
-    return kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
-    // if (!kIsWeb) return false;
-    // // Use screen width heuristic instead of UA parsing
-    // final shortestSide = MediaQueryData.fromView(WidgetsBinding.instance.window).size.shortestSide;
-    // return shortestSide < 800; // "mobile" web if narrower than 800px
-  }
 
   @override
   void initState() {
@@ -108,7 +102,7 @@ class _FloatingNumbersBackgroundState extends State<FloatingNumbersBackground> w
 
   @override
   Widget build(BuildContext context) {
-    final enableTouch = !isMobileWeb;
+    final enableTouch = !PlatformUtil.isMobileWeb;
 
     return RepaintBoundary(
       child: AnimatedBuilder(

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:numpuzzle/models/cell.dart';
+import 'package:numpuzzle/utils/platform_util.dart';
 
 class CellWidget extends StatelessWidget {
   final Cell cell;
@@ -14,6 +15,8 @@ class CellWidget extends StatelessWidget {
     required this.isReversedMode,
     required this.onTap,
   });
+
+  bool get _isWebMobile => PlatformUtil.isMobileWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +38,7 @@ class CellWidget extends StatelessWidget {
           child: Text(
             cell.isHidden ? '' : cell.number.toString(),
             style: TextStyle(
-              fontSize: kIsWeb ? 28 : 20,
+              fontSize: kIsWeb && !_isWebMobile ? 28 : 20,
               fontWeight: FontWeight.bold,
               color: (cell.visited || cell.isLocked) ? Colors.white : Colors.black,
             ),

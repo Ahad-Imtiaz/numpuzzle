@@ -220,17 +220,18 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
   }
 
   Widget _buildGameUI() {
-    return Column(children: [
-      const SizedBox(height: 16),
-      GameInfoPanel(
-        elapsedTime: elapsedTime,
-        wrongTaps: wrongTaps,
-        shuffleCountdown: widget.mode == GameMode.hard ? shuffleCountdown : null,
-        mode: widget.mode,
-      ),
-      const SizedBox(height: 32),
-      Expanded(
-        child: Padding(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 16),
+        GameInfoPanel(
+          elapsedTime: elapsedTime,
+          wrongTaps: wrongTaps,
+          shuffleCountdown: widget.mode == GameMode.hard ? shuffleCountdown : null,
+          mode: widget.mode,
+        ),
+        const SizedBox(height: 32),
+        Padding(
           padding: const EdgeInsets.all(8.0),
           child: GridBoard(
             gridManager: gridManager,
@@ -239,7 +240,7 @@ class NumberPuzzleGameScreenState extends State<NumberPuzzleGameScreen> {
             onCellTapped: _onCellTapped,
           ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }

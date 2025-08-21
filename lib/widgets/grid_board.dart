@@ -21,35 +21,38 @@ class GridBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Take the smaller of width or height so it always fits
         final boardSize = constraints.biggest.shortestSide;
-
-        // Account for spacing between cells
         final cellSize = (boardSize - (gridSize - 1) * 8) / gridSize;
 
-        return Center(
-          child: SizedBox(
-            width: boardSize,
-            height: boardSize,
-            child: Stack(children: [
-              for (int row = 0; row < gridSize; row++)
-                for (int col = 0; col < gridSize; col++)
-                  AnimatedPositioned(
-                    key: ValueKey(gridManager.grid[row][col].number),
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                    left: col * (cellSize + 4),
-                    top: row * (cellSize + 4),
-                    width: cellSize,
-                    height: cellSize,
-                    child: CellWidget(
-                      cell: gridManager.grid[row][col],
-                      isReversedMode: isReversedMode,
-                      onTap: () => onCellTapped(row, col),
-                    ),
+        // Total grid width/height
+        final gridWidth = gridSize * cellSize + (gridSize - 1) * 4;
+        final gridHeight = gridSize * cellSize + (gridSize - 1) * 4;
+
+        // Offset to center the grid in the available space
+        final offsetX = (boardSize - gridWidth) / 2;
+        final offsetY = (boardSize - gridHeight) / 2;
+
+        return SizedBox(
+          width: boardSize,
+          height: boardSize,
+          child: Stack(children: [
+            for (int row = 0; row < gridSize; row++)
+              for (int col = 0; col < gridSize; col++)
+                AnimatedPositioned(
+                  key: ValueKey(gridManager.grid[row][col].number),
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                  left: offsetX + col * (cellSize + 4),
+                  top: offsetY + row * (cellSize + 4),
+                  width: cellSize,
+                  height: cellSize,
+                  child: CellWidget(
+                    cell: gridManager.grid[row][col],
+                    isReversedMode: isReversedMode,
+                    onTap: () => onCellTapped(row, col),
                   ),
-            ]),
-          ),
+                ),
+          ]),
         );
       },
     );

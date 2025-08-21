@@ -8,7 +8,12 @@ import 'package:numpuzzle/widgets/label_check_box.dart';
 import 'package:numpuzzle/widgets/rules_widget.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
-  const ModeSelectionScreen({super.key});
+  final VoidCallback onToggleTheme;
+
+  const ModeSelectionScreen({
+    super.key,
+    required this.onToggleTheme,
+  });
 
   @override
   State<ModeSelectionScreen> createState() => _ModeSelectionScreenState();
@@ -50,7 +55,17 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Select Game Mode")),
+      appBar: AppBar(
+        title: const Text("Select Game Mode"),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark ? Icons.wb_sunny : Icons.nightlight_round,
+            ),
+            onPressed: widget.onToggleTheme,
+          ),
+        ],
+      ),
       body: Stack(children: [
         const FloatingNumbersBackground(),
         Center(

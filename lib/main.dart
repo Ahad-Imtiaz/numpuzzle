@@ -15,7 +15,6 @@ class _MyAppState extends State<MyApp> {
   bool isDarkMode = false;
 
   void toggleTheme() {
-    print('----- Toggling them');
     setState(() {
       isDarkMode = !isDarkMode;
     });
@@ -28,9 +27,7 @@ class _MyAppState extends State<MyApp> {
       primarySwatch: Colors.blue,
       scaffoldBackgroundColor: Colors.grey[200],
       cardColor: Colors.white,
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: Colors.black87),
-      ),
+      textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.black87)),
     );
 
     final darkTheme = ThemeData(
@@ -38,9 +35,7 @@ class _MyAppState extends State<MyApp> {
       primarySwatch: Colors.blueGrey,
       scaffoldBackgroundColor: Colors.black,
       cardColor: Colors.grey[900],
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: Colors.white70),
-      ),
+      textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.white70)),
     );
 
     return MaterialApp(
@@ -49,9 +44,7 @@ class _MyAppState extends State<MyApp> {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: ModeSelectionScreen(
-        onToggleTheme: toggleTheme,
-      ),
+      home: ModeSelectionScreen(onToggleTheme: toggleTheme),
     );
   }
 }
